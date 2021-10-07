@@ -20,4 +20,6 @@ This provides an RStudio Server app tailored for BRC that uses the system R (and
 
 # Todo
 
-- set up the widget so users can choose the version of R they want. We'll need to dynamically determine which version of r-spatial to use and what the user's R_LIBS_USER should be, i.e., ~/R/x86_64-pc-linux-gnu-library/<RVERSION>.
+- Make online form language the same as in the current RStudio app, reflecting https://github.com/ucb-rit/brc_oodapps/pull/11
+- Set up the widget so users can choose the version of R they want. We'll need to dynamically determine which version of r-spatial to use and what the user's R_LIBS_USER should be, i.e., ~/R/x86_64-pc-linux-gnu-library/<RVERSION>.
+- Consider making the default partition `savio2_htc` given most (many?) users wil not be doing parallel computations. The widget options seem to come from some global OOD config, so not sure if this is possible to override for a single app.
