@@ -1,54 +1,23 @@
 # bc_rcc_rstudio_server
-RStudio Server app for Open OnDemand
+RStudio Server app for Open OnDemand on the BRC clusters.
 
-Based on https://github.com/OSC/bc_osc_rstudio_server.
+Forked from https://github.com/mcw-rcc/bc_rcc_rstudio_server, which is based on https://github.com/OSC/bc_osc_rstudio_server.
 
 # Description
-This guide is a help to install the OOD RStudio Server app without requiring PRoot and/or Singularity. Prior to RStudio Server 1.3###, some hard-coded file paths caused a conflict when running multiple RStudio Server instances on the same server, as is the case when more than one OOD job launches to the same compute node. PRoot/Singularity fixed this issue by creating a unique TMP_DIR which was mounted into the container at /tmp. This fix successfully separated multiple instances running on the same server. To my knowledge, this was the primary benefit of using PRoot/Singularity. 
 
-Starting in RStudio Server 1.3###, the developers added environment variables to control the location of those hard-coded files. This means that (in our case at least) PRoot/Singularity is no longer required for the OOD RStudio Server App.
+This provides an RStudio Server app tailored for BRC that uses the system R (and a system-installed RStudio Server) rather than providing R/RStudio in a container. The benefits of this over a container-based approach include:
 
-# Setup without PRoot/Singularity
-RStudio Server 1.3.959 enables RStudio OOD app to run without PRoot or Singularity. The developers added two flags for rserver that allow control of previously hard-coded file paths. However, you might still need PRoot or Singularity for some other reason depending on your HPC environment.
+ - Access to the same version of R as users are used to via the module system, including use of the heavily-optimized, threaded Intel MKL BLAS and LAPACK linear algebra packages rather than the much slower, non-threaded BLAS and LAPACK that come by default with R.
+ - Access to the set of core R packages provided in the r-packages and r-spatial modules. 
+ - Avoiding having user confusion from the local filesystem of the OOD app be inside the container.
 
-## Install RStudio Server 1.3.959 CentOS 6/7
-The simplest way is to install using the RPM installer provided by RStudio.
-```
-wget https://download2.rstudio.org/server/centos6/x86_64/rstudio-server-rhel-1.3.959-x86_64.rpm
-sudo yum install rstudio-server-rhel-1.3.959-x86_64.rpm
-```
-However, many HPC sites like to control installation prefix. The provided RPM is not relocatable, but you can extract the files and move them manually.
-```
-mkdir ~/rstudio_files && cd ~/rstudio_files
-wget https://download2.rstudio.org/server/centos6/x86_64/rstudio-server-rhel-1.3.959-x86_64.rpm
-rpm2cpio rstudio-1.3.959-x86_64.rpm | cpio -idmv
-```
-This creates a directory `~/rstudio_files/usr/lib/rstudio-server` that contains the files. Move these files to your shared filesystem.
-```
-# we use BCM so our shared filesystem for apps is /cm/shared/apps. Modify to suit your needs.
-cp -R ~/rstudio_files/usr/lib/rstudio-server/* /cm/shared/apps/rstudio-server/1.3.959
-```
-Optionally add a modulefile to load env.
+# Instructions
 
-## RStudio Server OOD App
-To install the app:
-```
-cd /var/www/ood/apps/sys 
-git clone https://github.com/mcw-rcc/bc_rcc_rstudio_server.git
-```
-Modify `manifest.yml`, `form.yml`, and `submit.yml` for your site. The `template/script.sh.erb` should also be modified to suit your site. For instance, we use a modulefile to load RStudio Server, which is specific by site and should be supplied by your site. The `rserver` command in `template/script.sh.erb` contains two new flags that allow 1.3.959 to function in a multi-user environment without PRoot or Singularity.
-```
-rserver \
-  --www-port ${port} \
-  --auth-none 0 \
-  --auth-pam-helper-path "${RSTUDIO_AUTH}" \
-  --auth-encrypt-password 0 \
-  --rsession-path "${RSESSION_WRAPPER_FILE}" \
-  --server-data-dir "${TMPDIR}" \ 
-  --secure-cookie-key-file "${TMPDIR}/rstudio-server/secure-cookie-key"
-```
-`--server-data-dir "${TMPDIR}"` redirects output of PIDs from /var/run/rstudio-rsession to ${TMPDIR}.
+1. Install RStudio Server in a module, as shown in the consultsw module farm, at `scripts/rstudio-server/1.3.1093`. Note that just dumps the binaries from the rpm onto the filesystem. As of version 1.4 (I think) RStudio Server needs dynamically links to a Postgres library, libpq, which is not available on Savio, but for now the older RStudio Server should be fine.
+2. Make sure that `template/bin/auth` uses `-lt` as discussed [here](https://discourse.osc.edu/t/rstudio-server-app-using-non-local-r/1223/3).
+3. Modify `form.yml.erb` to build on existing Savio RStudio OOD config. Set variables for the versions of RStudio Server, R, and R-spatial.
+4. Modify `template/script.sh.erb` to load modules and set R library search path details.
 
-`--secure-cookie-key-file "${TMPDIR}/rstudio-server/secure-cookie-key"` redirects output of secure-cookie-key from /tmp/rstudio-server to $TMPDIR. Necessary to avoid conflict where multiple RStudio Server instances are running and generate same hard-coded file.
+# Todo
 
-Your $TMPDIR location needs to be unique for this to work. We use our queueing system to set a unique $TMPDIR per job. You can also use `export TMPDIR="$(mktemp -d)"` within `template/script.sh.erb`.
+- set up the widget so users can choose the version of R they want. We'll need to dynamically determine which version of r-spatial to use and what the user's R_LIBS_USER should be, i.e., ~/R/x86_64-pc-linux-gnu-library/<RVERSION>.
